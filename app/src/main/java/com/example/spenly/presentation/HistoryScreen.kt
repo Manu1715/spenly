@@ -24,28 +24,27 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.spenly.presentation.LocalTransactionRepository
+import com.example.spenly.presentation.Transaction
 import java.text.NumberFormat
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
+// CompositionLocal for triggering clear dialog from HistoryTopBar
+val LocalClearDialogTrigger = compositionLocalOf<MutableState<Boolean>> {
+    error("No ClearDialogTrigger provided")
+}
+
 // --- Colors (Defined for clarity) ---
-val BackgroundColor = Color(0xFF0C0C0F)
+val BackgroundColor = Color.Black
 val TextWhite = Color.White
 val AccentRed = Color(0xFFFF4D4D)
 val SubTextGray = Color.Gray
 val SurfaceColor = Color(0xFF1A1A1F) // Color for TextField background
 val AccentGreen = Color(0xFF00FF80) // Color for income
 
-// --- Data Class for Transactions ---
-data class Transaction(
-    val id: Int,
-    val title: String,
-    val category: String,
-    val amount: Double,
-    val date: LocalDate,
-    val isIncome: Boolean
-)
+private val historyDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd MMMM yyyy")
 
 // This reusable TopAppBar can be kept for other screens.
 @OptIn(ExperimentalMaterial3Api::class)
@@ -98,29 +97,41 @@ fun HistoryScreen() {
     var searchQuery by remember { mutableStateOf("") }
     var showClearDialog by remember { mutableStateOf(false) }
 
-    // --- Expanded Sample Transaction Data ---
-    var transactions by remember {
-        mutableStateOf(
-            listOf(
-                Transaction(1, "Food & Dining", "Groceries", 45.00, LocalDate.of(2025, 10, 13), false),
-                Transaction(2, "Shopping", "Dress", 308.00, LocalDate.of(2025, 10, 13), false),
-                Transaction(3, "Freelance", "Project X", 10000.00, LocalDate.of(2025, 10, 13), true),
-                Transaction(4, "Shopping", "Snitch Shirt", 180.00, LocalDate.of(2025, 10, 13), false),
-                Transaction(5, "Education", "Udemy Course", 50.00, LocalDate.of(2025, 10, 12), false),
-                Transaction(6, "Salary", "October Paycheck", 50000.00, LocalDate.of(2025, 10, 11), true),
-                Transaction(7, "Travel", "Weekend Trip", 2500.00, LocalDate.of(2025, 10, 11), false),
-                Transaction(8, "Entertainment", "Movie Tickets", 600.00, LocalDate.of(2025, 10, 10), false),
-                Transaction(9, "Health", "Medicine", 150.00, LocalDate.of(2025, 10, 10), false),
-                Transaction(10, "Gifts", "Birthday Present", 1000.00, LocalDate.of(2025, 10, 9), false)
-            )
-        )
+    // Get the trigger from CompositionLocal if available
+    val clearTrigger = LocalClearDialogTrigger.current
+    LaunchedEffect(key1 = clearTrigger.value) {
+        if (clearTrigger.value) {
+            showClearDialog = true
+            // Reset after a brief delay to allow state to update
+            clearTrigger.value = false
+        }
     }
 
-    // Filter transactions based on search query and group them by date
-    val filteredTransactions = transactions.filter {
-        it.title.contains(searchQuery, ignoreCase = true) ||
-                it.category.contains(searchQuery, ignoreCase = true)
-    }.groupBy { it.date }
+    // Get transactions from repository - observe state directly
+    val repository = LocalTransactionRepository.current
+    val transactionsState = repository.transactionsState
+    val transactions by transactionsState
+
+    // Filter transactions based on search query and group them by date - Optimized with remember
+    val filteredTransactions by remember(transactions, searchQuery) {
+        derivedStateOf {
+            if (searchQuery.isBlank()) {
+                transactions.groupBy { it.date }
+            } else {
+                transactions.filter {
+                    it.title.contains(searchQuery, ignoreCase = true) ||
+                            it.category.contains(searchQuery, ignoreCase = true)
+                }.groupBy { it.date }
+            }
+        }
+    }
+
+    // Convert map entries to list for better performance in LazyColumn - moved outside LazyColumn
+    val transactionEntries by remember(filteredTransactions) {
+        derivedStateOf {
+            filteredTransactions.entries.sortedByDescending { it.key }
+        }
+    }
 
     // --- Confirmation Dialog for Clearing History ---
     if (showClearDialog) {
@@ -131,7 +142,7 @@ fun HistoryScreen() {
             confirmButton = {
                 TextButton(
                     onClick = {
-                        transactions = emptyList()
+                        repository.clearAllTransactions()
                         showClearDialog = false
                     }
                 ) {
@@ -147,39 +158,12 @@ fun HistoryScreen() {
         )
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { },
-                actions = {
-                    Button(
-                        onClick = { showClearDialog = true }, // Show the confirmation dialog
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.Transparent,
-                            contentColor = AccentRed
-                        ),
-                        shape = RoundedCornerShape(20.dp),
-                        border = BorderStroke(1.dp, color = Color.DarkGray),
-                        modifier = Modifier
-                            .padding(end = 26.dp)
-                            .height(35.dp)
-                    ) {
-                        Text("Clear All", fontSize = 14.sp)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = BackgroundColor
-                )
-            )
-        },
-        containerColor = BackgroundColor
-    ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 14.dp)
-        ) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(BackgroundColor)
+            .padding(16.dp)
+    ) {
             // --- Static Header Content ---
             item {
                 Text(
@@ -227,7 +211,7 @@ fun HistoryScreen() {
                 Spacer(modifier = Modifier.height(17.dp))
             }
 
-            // --- Dynamic Transaction List ---
+            // --- Dynamic Transaction List --- Optimized for performance
             if (filteredTransactions.isEmpty()) {
                 item {
                     Text(
@@ -240,31 +224,36 @@ fun HistoryScreen() {
                     )
                 }
             } else {
-                filteredTransactions.forEach { (date, transactionsOnDate) ->
+                // Use pre-computed transaction entries
+                transactionEntries.forEach { (date, transactionsOnDate) ->
                     // Date Header
-                    item {
+                    item(key = "date_$date") {
                         Text(
-                            text = date.format(DateTimeFormatter.ofPattern("dd MMMM yyyy")),
+                            text = date.format(historyDateFormatter),
                             color = SubTextGray,
                             fontSize = 14.sp,
                             modifier = Modifier.padding(vertical = 8.dp)
                         )
                     }
-                    // List of transactions for that date
-                    items(transactionsOnDate, key = { it.id }) { transaction ->
+                    // List of transactions for that date - newest first (by ID)
+                    items(
+                        items = transactionsOnDate.sortedByDescending { it.id },
+                        key = { it.id }
+                    ) { transaction ->
                         TransactionItem(transaction = transaction)
                         Spacer(modifier = Modifier.height(8.dp))
                     }
                 }
             }
-        }
     }
 }
 
 @Composable
 fun TransactionItem(transaction: Transaction) {
-    val currencyFormat = NumberFormat.getCurrencyInstance(Locale("en", "IN"))
-    val glowColor = if (transaction.isIncome) AccentGreen else AccentRed
+    val currencyFormat = remember { NumberFormat.getCurrencyInstance(Locale("en", "IN")) }
+    val glowColor = remember(transaction.isIncome) {
+        if (transaction.isIncome) AccentGreen else AccentRed
+    }
 
     Box(
         modifier = Modifier
@@ -272,17 +261,14 @@ fun TransactionItem(transaction: Transaction) {
             .height(60.dp),
         contentAlignment = Alignment.Center
     ) {
-        // Background Glow Effect
+        // Background Glow Effect - Removed blur for maximum performance
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
-                    brush = Brush.horizontalGradient(
-                        colors = listOf(glowColor.copy(alpha = 0.4f), Color.Transparent, Color.Transparent)
-                    ),
+                    color = glowColor.copy(alpha = 0.1f),
                     shape = RoundedCornerShape(12.dp)
                 )
-                .blur(30.dp)
         )
 
         // Main Content Row
@@ -317,8 +303,4 @@ fun TransactionItem(transaction: Transaction) {
     }
 }
 
-@Preview(showBackground = true)
-@Composable
-fun HistoryScreenPreview() {
-    HistoryScreen()
-}
+

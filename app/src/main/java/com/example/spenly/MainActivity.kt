@@ -4,10 +4,18 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.background
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.navigation.compose.NavHost
@@ -15,12 +23,14 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.spenly.presentation.BottomBar
-import com.example.spenly.presentation.HomeTopBar
-import com.example.spenly.presentation.screens.BudgetScreen
+import com.example.spenly.presentation.BudgetScreen
+import com.example.spenly.presentation.AddTransactionScreen
 import com.example.spenly.presentation.HistoryScreen
+import com.example.spenly.presentation.LocalClearDialogTrigger
+import com.example.spenly.presentation.ProvideTransactionRepository
 import com.example.spenly.presentation.screens.Homescreen
-
-import com.example.spenly.presentation.screens.SettingsScreen
+import com.example.spenly.presentation.SettingsScreen
+import com.example.spenly.presentation.ScreenTopBar
 import com.example.spenly.ui.theme.SpenlyTheme
 
 class MainActivity : ComponentActivity() {
@@ -29,33 +39,82 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             SpenlyTheme {
-                val navController = rememberNavController()
-                val navBackStackEntry by navController.currentBackStackEntryAsState()
-                val currentRoute = navBackStackEntry?.destination?.route
+                ProvideTransactionRepository {
+                    val navController = rememberNavController()
+                    val navBackStackEntry by navController.currentBackStackEntryAsState()
+                    val currentRoute = navBackStackEntry?.destination?.route
+                    val clearDialogTrigger = remember { mutableStateOf(false) }
+                    var calculatorExpanded by remember { mutableStateOf(false) }
 
-                Scaffold(
-                    containerColor = Color(0xFF0C0C0F), // Consistent background color
-                    topBar = { 
-                        when (currentRoute) {
-                            "history" -> { /* History screen has its own TopAppBar */ }
-                            else -> { HomeTopBar() }
+                    CompositionLocalProvider(LocalClearDialogTrigger provides clearDialogTrigger) {
+                    Scaffold(
+                        containerColor = Color(0xFF0C0C0F), // Consistent background color
+                        topBar = {
+                            ScreenTopBar(
+                                currentRoute = currentRoute,
+                                onClearClick = { clearDialogTrigger.value = true },
+                                calculatorExpanded = calculatorExpanded,
+                                onCalculatorExpandedChange = { calculatorExpanded = it }
+                            )
+                        },
+                        bottomBar = { BottomBar(navController = navController) }
+                    ) { innerPadding ->
+                        NavHost(
+                            navController = navController,
+                            startDestination = "home",
+                            modifier = Modifier.padding(innerPadding)
+                        ) {
+                            composable(
+                                route = "home"
+                            ) { 
+                                Homescreen()
+                                }
+                            composable(
+                                route = "history"
+                            ) { HistoryScreen() }
+                            composable(
+                                route = "budget"
+                            ) { BudgetScreen() }
+                            composable(
+                                route = "settings"
+                            ) { SettingsScreen() }
+                            composable(
+                                route = "add",
+                                enterTransition = {
+                                    slideInVertically(
+                                        initialOffsetY = { it },
+                                        animationSpec = tween(180)
+                                    ) + fadeIn(animationSpec = tween(180))
+                                },
+                                exitTransition = {
+                                    slideOutVertically(
+                                        targetOffsetY = { it },
+                                        animationSpec = tween(160)
+                                    ) + fadeOut(animationSpec = tween(160))
+                                },
+                                popEnterTransition = {
+                                    slideInVertically(
+                                        initialOffsetY = { it },
+                                        animationSpec = tween(180)
+                                    ) + fadeIn(animationSpec = tween(180))
+                                },
+                                popExitTransition = {
+                                    slideOutVertically(
+                                        targetOffsetY = { it },
+                                        animationSpec = tween(160)
+                                    ) + fadeOut(animationSpec = tween(160))
+                                }
+                            ) {
+                                AddTransactionScreen(
+                                    onCancel = { navController.popBackStack() },
+                                    onSave = { navController.popBackStack() }
+                                )
+                            }
                         }
-                    },
-                    bottomBar = { BottomBar(navController = navController) }
-                ) { innerPadding ->
-                    NavHost(
-                        navController = navController,
-                        startDestination = "home",
-                        modifier = Modifier.padding(innerPadding)
-                    ) {
-                        composable("home") { Homescreen() }
-                        composable("history") { HistoryScreen() }
-                        composable("budget") { BudgetScreen() }
-                        composable("settings") { SettingsScreen() }
                     }
                 }
             }
         }
     }
-}
+}}
 

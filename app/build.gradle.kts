@@ -16,15 +16,28 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        vectorDrawables {
+            useSupportLibrary = true
+        }
+
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
+        }
+
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+        debug {
+            isMinifyEnabled = false
         }
     }
     compileOptions {
@@ -36,6 +49,15 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = false
+    }
+    androidResources {
+        localeFilters += listOf("en")
+    }
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
     }
 }
 
@@ -49,7 +71,14 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.navigation.compose)
+
+        // ... other dependencies
+        implementation("androidx.compose.material3:material3")
+        implementation("androidx.navigation:navigation-compose:2.8.4")
+        implementation("net.objecthunter:exp4j:0.4.8") // For expression parsing
     
+
+
     // Material Icons
     implementation("androidx.compose.material:material-icons-core:1.7.3")
     implementation("androidx.compose.material:material-icons-extended:1.7.3")

@@ -24,28 +24,28 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.NavGraph.Companion.findStartDestination
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BottomBar(navController: NavController) {
-
-    var selectedItem by remember { mutableStateOf(0) }
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStackEntry?.destination?.route
+    
     val lightPurple = Color(0xFFD0BCFF)
     val unselectedColor = Color(0xFF9E9E9E)
-    val darkBlue = Color(0xFF00008B)
     val darkgrey = Color(0xFF1A1A1A)
-    val black = Color(0xFF0A0A0A)
 
     val items = listOf("Home", "History", "Budget", "Settings")
+    val routes = listOf("home", "history", "budget", "settings")
     val icons = listOf(
         Icons.Default.Home,
         Icons.Default.History,
@@ -69,17 +69,25 @@ fun BottomBar(navController: NavController) {
                             Spacer(Modifier.weight(1f))
                         }
 
+                        val route = routes[index]
+                        val isSelected = currentRoute == route
 
                         NavigationBarItem(
                             modifier = Modifier.padding(horizontal = 4.dp),
-                            selected = selectedItem == index,
+                            selected = isSelected,
                             onClick = {
-                                selectedItem = index
-                                when (index) {
-                                    0 -> navController.navigate("home")
-                                    1 -> navController.navigate("history")
-                                    2 -> navController.navigate("budget")
-                                    3 -> navController.navigate("settings")
+                                // Prevent navigation to current destination
+                                if (currentRoute != route) {
+                                    navController.navigate(route) {
+                                        // For bottom navigation: keep all screens in stack
+                                        popUpTo(navController.graph.findStartDestination().id) {
+                                            saveState = true
+                                        }
+                                        // Avoid multiple copies of the same destination
+                                        launchSingleTop = true
+                                        // Restore state when reselecting a previously selected item
+                                        restoreState = true
+                                    }
                                 }
                             },
                             icon = {
@@ -113,7 +121,11 @@ fun BottomBar(navController: NavController) {
                 ),
             contentAlignment = Alignment.Center
         ) {
-            IconButton(onClick = { }) {
+            IconButton(onClick = {
+                navController.navigate("add") {
+                    launchSingleTop = true
+                }
+            }) {
                 Icon(
                     imageVector = Icons.Default.Add,
                     contentDescription = "Add",

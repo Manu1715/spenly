@@ -1,20 +1,26 @@
 package com.example.spenly.presentation
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -24,25 +30,30 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.spenly.R
+
+private val topBarGradient = Brush.verticalGradient(
+    colors = listOf(
+        Color.Black.copy(alpha = 0.9f),
+        Color.Black.copy(alpha = 0.75f),
+        Color(0xFF26C6DA).copy(alpha = 0.07f),
+
+
+        )
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeTopBar() {
-    val darkBlue = Color(0xFF00008B)
+fun HomeTopBar(
+    calculatorExpanded: Boolean = false,
+    onCalculatorExpandedChange: (Boolean) -> Unit = {}
+) {
     Box(
-        modifier = Modifier.background(
-            brush = Brush.verticalGradient(
-                colors = listOf(
-                    Color.Black.copy(1.0f),
-                    Color.Cyan.copy(0.5f)
-                ),
-                startY = 150f,
-                endY = -200f
-            )
-        )
+        modifier = Modifier.background(topBarGradient)
     ) {
         TopAppBar(
             title = { },
@@ -77,28 +88,34 @@ fun HomeTopBar() {
                         tint = Color.Yellow,
                         modifier = Modifier.size(27.dp)
                     )
-
-                    Icon(
-                        imageVector = Icons.Default.Calculate,
-                        contentDescription = "Menu",
-                        tint = Color.White,
-                        modifier = Modifier.size(27.dp)
-                    )
                 }
             },
             actions = {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(1.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.padding(end = 17.dp)
                 ) {
-                    IconButton(onClick = { }) {
-                        Icon(
-                            imageVector = Icons.Default.Calculate,
-                            contentDescription = "Action 1",
-                            tint = Color.White
-                        )
+                    CalculatorDropdown(
+                        expanded = calculatorExpanded,
+                        onExpandedChange = onCalculatorExpandedChange
+                    ) {
+                        IconButton(
+                            onClick = {
+                                // Directly toggle the state
+                                // This should work for both opening and closing
+                                onCalculatorExpandedChange(!calculatorExpanded)
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Calculate,
+                                contentDescription = "Calculator",
+                                tint = if (calculatorExpanded) Color.Cyan else Color.White,
+                                modifier = Modifier.size(27.dp)
+                            )
+                        }
                     }
+
                     Box(
                         modifier = Modifier
                             .size(32.dp)
@@ -106,6 +123,7 @@ fun HomeTopBar() {
                             .background(Color.Cyan),
                         contentAlignment = Alignment.Center
                     ) {
+
                         IconButton(onClick = { }) {
                             Icon(
                                 imageVector = Icons.Default.Layers,
@@ -128,6 +146,110 @@ fun TopHomescreen() {
     Box { HomeTopBar() }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun HistoryTopBar(onClearClick: () -> Unit) {
+    Box(
+        modifier = Modifier.background(topBarGradient)
+    ) {
+        TopAppBar(
+            title = { },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = Color.Transparent
+            ),
+            actions = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(end = 17.dp)
+                ) {
+                    Button(
+                        onClick = onClearClick,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color.Transparent,
+                            contentColor = Color(0xFFFF4D4D)
+                        ),
+                        shape = RoundedCornerShape(20.dp),
+                        border = BorderStroke(1.dp, Color.DarkGray),
+                        modifier = Modifier.height(35.dp)
+                    ) {
+                        Text("Clear All", fontSize = 14.sp)
+                    }
+                }
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ScreenTopBar(
+    currentRoute: String?,
+    onClearClick: () -> Unit,
+    calculatorExpanded: Boolean = false,
+    onCalculatorExpandedChange: (Boolean) -> Unit = {}
+) {
+    when (currentRoute) {
+        "home" -> HomeTopBar(
+            calculatorExpanded = calculatorExpanded,
+            onCalculatorExpandedChange = onCalculatorExpandedChange
+        )
+
+        "history" -> HistoryTopBar(onClearClick = onClearClick)
+
+        else -> EmptyTopBar()
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EmptyTopBar() {
+    Box(modifier = Modifier.background(topBarGradient)) {
+        TopAppBar(
+            title = {},
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = Color.Transparent
+            )
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TitledTopBar(title: String) {
+    Box(modifier = Modifier.background(topBarGradient)) {
+        TopAppBar(
+            title = {
+                Text(
+                    text = title,
+                    color = Color.White,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = Color.Transparent
+            )
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsTopBar() {
+    Box(
+        modifier = Modifier.background(topBarGradient)
+    ) {
+        TopAppBar(
+            title = { },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = Color.Transparent
+            )
+        )
+    }
+}
+
 @Composable
 @Preview(showBackground = true)
-fun PreviewTopHomescreen() { TopHomescreen() }
+fun PreviewTopHomescreen() {
+    TopHomescreen()
+}

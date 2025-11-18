@@ -5,26 +5,23 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBackIos
 import androidx.compose.material.icons.filled.ArrowForwardIos
- import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -37,57 +34,77 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.spenly.presentation.LocalTransactionRepository
+import com.example.spenly.presentation.Transaction
 import java.time.LocalDate
-import java.time.Month
+import java.time.YearMonth
 import java.time.format.TextStyle
 import java.util.Locale
+import java.text.NumberFormat
 
-data class Transaction(
-    val id: Int,
-    val title: String,
-    val category: String,
-    val amount: Double,
-    val isIncome: Boolean
-)
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun Homescreen() {
+    val repository = LocalTransactionRepository.current
     var selectedRange by remember { mutableStateOf("Month") }
 
-    val currentDate = LocalDate.now()
-    var selectedDay by remember { mutableStateOf(currentDate.dayOfMonth) }
-    var selectedMonth by remember { mutableStateOf(currentDate.monthValue) }
+    val currentDate = remember { LocalDate.now() }
+    val currentYearMonth = remember { YearMonth.from(currentDate) }
+    var selectedDate by remember { mutableStateOf(currentDate) }
+    var selectedYearMonth by remember { mutableStateOf(currentYearMonth) }
     var selectedYear by remember { mutableStateOf(currentDate.year) }
 
-    val options = listOf("Day", "Month", "Year")
+    val options = remember { listOf("Day", "Month", "Year") }
 
     var balanceCardHeight by remember { mutableStateOf<Dp?>(null) }
     val density = LocalDensity.current
-
-    // Sample transaction data (modifiable)
-    var transactions by remember {
-        mutableStateOf(
-            mutableListOf(
-                Transaction(1, "Salary", "Income", 8000.0, true),
-                Transaction(2, "Groceries", "Food", 1200.0, false),
-                Transaction(3, "Freelance", "Side Hustle", 3000.0, true),
-                Transaction(4, "Netflix", "Entertainment", 499.0, false)
-            )
-        )
+    
+    // Observe repository transactions state directly
+    val transactionsState = repository.transactionsState
+    val allTransactions by transactionsState
+    
+    // Get current transactions from repository - newest first (by date, then by ID)
+    val transactions by remember(allTransactions) {
+        derivedStateOf {
+            allTransactions.sortedWith(
+                compareByDescending<com.example.spenly.presentation.Transaction> { it.date }
+                    .thenByDescending { it.id }
+            ).take(10) // Show recent 10
+        }
     }
+    
+    // Calculate totals
+    val totalBalance by remember(allTransactions) {
+        derivedStateOf {
+            allTransactions.sumOf { if (it.isIncome) it.amount else -it.amount }
+        }
+    }
+    
+    val totalIncome by remember(allTransactions) {
+        derivedStateOf {
+            allTransactions.filter { it.isIncome }.sumOf { it.amount }
+        }
+    }
+    
+    val totalExpenses by remember(allTransactions) {
+        derivedStateOf {
+            allTransactions.filter { !it.isIncome }.sumOf { it.amount }
+        }
+    }
+    
+    val currencyFormat = remember { NumberFormat.getCurrencyInstance(Locale("en", "IN")) }
 
     var showDialog by remember { mutableStateOf(false) }
-    var selectedTransaction by remember { mutableStateOf<Transaction?>(null) }
+    var selectedTransaction by remember { mutableStateOf<com.example.spenly.presentation.Transaction?>(null) }
 
-    // Entire screen scrollable
-    LazyColumn(
-        modifier = Modifier
-            .background(Color(0xFF0C0C0F))
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .background(Color.Black)
+                .fillMaxSize()
+                .padding(16.dp)
+        ) {
         item {
-            // Header & selectors
             Text(
                 text = "Home",
                 fontSize = 35.sp,
@@ -135,8 +152,8 @@ fun Homescreen() {
                         .size(17.dp)
                         .clickable {
                             when (selectedRange) {
-                                "Day" -> selectedDay = if (selectedDay > 1) selectedDay - 1 else 31
-                                "Month" -> selectedMonth = if (selectedMonth > 1) selectedMonth - 1 else 12
+                                "Day" -> selectedDate = selectedDate.minusDays(1)
+                                "Month" -> selectedYearMonth = selectedYearMonth.minusMonths(1)
                                 "Year" -> selectedYear -= 1
                             }
                         }
@@ -144,8 +161,8 @@ fun Homescreen() {
 
                 Text(
                     text = when (selectedRange) {
-                        "Day" -> "Day $selectedDay"
-                        "Month" -> Month.of(selectedMonth).getDisplayName(TextStyle.FULL, Locale.getDefault()) + " $selectedYear"
+                        "Day" -> "Day ${selectedDate.dayOfMonth}"
+                        "Month" -> selectedYearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault()) + " ${selectedYearMonth.year}"
                         else -> selectedYear.toString()
                     },
                     color = Color.LightGray,
@@ -161,9 +178,21 @@ fun Homescreen() {
                         .size(17.dp)
                         .clickable {
                             when (selectedRange) {
-                                "Day" -> selectedDay = if (selectedDay < 31) selectedDay + 1 else 1
-                                "Month" -> selectedMonth = if (selectedMonth < 12) selectedMonth + 1 else 1
-                                "Year" -> selectedYear += 1
+                                "Day" -> {
+                                    val nextDate = selectedDate.plusDays(1)
+                                    if (!nextDate.isAfter(currentDate)) {
+                                        selectedDate = nextDate
+                                    }
+                                }
+                                "Month" -> {
+                                    val nextYearMonth = selectedYearMonth.plusMonths(1)
+                                    if (!nextYearMonth.isAfter(currentYearMonth)) {
+                                        selectedYearMonth = nextYearMonth
+                                    }
+                                }
+                                "Year" -> if (selectedYear < currentDate.year) {
+                                    selectedYear += 1
+                                }
                             }
                         }
                 )
@@ -171,7 +200,7 @@ fun Homescreen() {
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Total Balance Card (measure height)
+            // --- BETTER GLOW BEHIND TOTAL BALANCE BOX ---
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -183,19 +212,28 @@ fun Homescreen() {
                     },
                 contentAlignment = Alignment.Center
             ) {
+                // Cyan glow behind the card
+                val glowBrush = remember {
+                    Brush.radialGradient(
+                        colors = listOf(
+                            Color.Cyan.copy(alpha = 0.6f),
+                            Color.Transparent
+                        ),
+                        center = Offset(500f, 100f), // Center glow under the box
+                        radius = 500f
+                    )
+                }
                 Box(
                     modifier = Modifier
-                        .size(300.dp, 89.dp)
+                        .fillMaxSize()
+                        .size(200.dp,89.dp)
                         .background(
-                            brush = Brush.radialGradient(
-                                colors = listOf(Color.Cyan.copy(alpha = 0.7f), Color.Transparent),
-                                center = Offset(500f, 100f),
-                                radius = 480f
-                            )
+                            brush = glowBrush,
+                            shape = RoundedCornerShape(24.dp)
                         )
-                        .blur(60.dp)
                 )
 
+                // Main Total Balance card
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -212,7 +250,7 @@ fun Homescreen() {
                     )
                     Spacer(modifier = Modifier.height(5.dp))
                     Text(
-                        text = "₹409,966.53",
+                        text = currencyFormat.format(totalBalance),
                         color = Color.White,
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Bold
@@ -222,7 +260,6 @@ fun Homescreen() {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Income & Expenses row — BOTH cards visible with equal width
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -232,14 +269,14 @@ fun Homescreen() {
             ) {
                 IncomeExpenseCard(
                     title = "Income",
-                    amount = "₹10,610.00",
+                    amount = currencyFormat.format(totalIncome),
                     glowColor = Color(0xFF00FF80),
                     modifier = Modifier.weight(1f)
                 )
 
                 IncomeExpenseCard(
                     title = "Expenses",
-                    amount = "₹5,643.47",
+                    amount = currencyFormat.format(totalExpenses),
                     glowColor = Color(0xFFFF4D4D),
                     modifier = Modifier.weight(1f)
                 )
@@ -260,18 +297,23 @@ fun Homescreen() {
             )
         }
 
-        // Dynamic list of transactions
-        items(transactions, key = { it.id }) { txn ->
-            TransactionItem(txn) {
-                selectedTransaction = txn
-                showDialog = true
-            }
+        items(
+            items = transactions,
+            key = { it.id }
+        ) { txn ->
+            TransactionItem(
+                transaction = txn,
+                onLongPress = {
+                    selectedTransaction = txn
+                    showDialog = true
+                }
+            )
         }
 
         item { Spacer(modifier = Modifier.height(40.dp)) }
     }
+    }
 
-    // Dialog for edit/delete on long press
     if (showDialog && selectedTransaction != null) {
         AlertDialog(
             onDismissRequest = { showDialog = false },
@@ -279,7 +321,6 @@ fun Homescreen() {
             text = { Text("What would you like to do with '${selectedTransaction?.title}'?") },
             confirmButton = {
                 TextButton(onClick = {
-                    // TODO: open an edit screen/dialog — placeholder
                     showDialog = false
                 }) {
                     Icon(Icons.Default.Edit, contentDescription = null)
@@ -289,9 +330,7 @@ fun Homescreen() {
             },
             dismissButton = {
                 TextButton(onClick = {
-                    // Delete
-                    transactions.remove(selectedTransaction)
-                    transactions = transactions.toMutableList()
+                    selectedTransaction?.let { repository.removeTransaction(it) }
                     showDialog = false
                 }) {
                     Icon(Icons.Default.Delete, contentDescription = null)
@@ -313,20 +352,13 @@ fun IncomeExpenseCard(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(24.dp))
-            .clickable { /* optional click */ },
+            .clickable { },
         contentAlignment = Alignment.Center
     ) {
-        // Glow background
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .background(
-                    brush = Brush.radialGradient(
-                        colors = listOf(glowColor.copy(alpha = 0.4f), Color.Transparent),
-                        radius = 200f
-                    )
-                )
-                .blur(40.dp)
+                .background(glowColor.copy(alpha = 0.08f))
         )
 
         Column(
@@ -378,9 +410,8 @@ fun TransactionItem(transaction: Transaction, onLongPress: () -> Unit) {
     }
 }
 
-
 @Preview(showBackground = true)
 @Composable
-fun HomescreenPreview(){
+fun Preview() {
     Homescreen()
 }
