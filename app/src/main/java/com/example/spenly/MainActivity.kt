@@ -28,9 +28,10 @@ import com.example.spenly.presentation.AddTransactionScreen
 import com.example.spenly.presentation.HistoryScreen
 import com.example.spenly.presentation.LocalClearDialogTrigger
 import com.example.spenly.presentation.ProvideTransactionRepository
-import com.example.spenly.presentation.screens.Homescreen
 import com.example.spenly.presentation.SettingsScreen
 import com.example.spenly.presentation.ScreenTopBar
+import com.example.spenly.presentation.screens.Homescreen
+
 import com.example.spenly.ui.theme.SpenlyTheme
 
 class MainActivity : ComponentActivity() {
@@ -66,7 +67,7 @@ class MainActivity : ComponentActivity() {
                         ) {
                             composable(
                                 route = "home"
-                            ) { 
+                            ) {
                                 Homescreen()
                                 }
                             composable(

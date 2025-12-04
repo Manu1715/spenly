@@ -7,6 +7,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBackIos
@@ -20,6 +21,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,17 +33,18 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.spenly.presentation.LocalTransactionRepository
 import com.example.spenly.presentation.Transaction
+import java.text.NumberFormat
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.TextStyle
 import java.util.Locale
-import java.text.NumberFormat
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -48,50 +52,51 @@ fun Homescreen() {
     val repository = LocalTransactionRepository.current
     var selectedRange by remember { mutableStateOf("Month") }
 
-    val currentDate = remember { LocalDate.now() }
-    val currentYearMonth = remember { YearMonth.from(currentDate) }
-    var selectedDate by remember { mutableStateOf(currentDate) }
-    var selectedYearMonth by remember { mutableStateOf(currentYearMonth) }
-    var selectedYear by remember { mutableStateOf(currentDate.year) }
+    // Use a single source of truth for the date
+    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+
+    // Derived states for month and year views
+    val selectedYearMonth = YearMonth.from(selectedDate)
+    val selectedYear = selectedDate.year
 
     val options = remember { listOf("Day", "Month", "Year") }
 
     var balanceCardHeight by remember { mutableStateOf<Dp?>(null) }
     val density = LocalDensity.current
-    
+
     // Observe repository transactions state directly
     val transactionsState = repository.transactionsState
     val allTransactions by transactionsState
-    
+
     // Get current transactions from repository - newest first (by date, then by ID)
     val transactions by remember(allTransactions) {
         derivedStateOf {
             allTransactions.sortedWith(
                 compareByDescending<com.example.spenly.presentation.Transaction> { it.date }
                     .thenByDescending { it.id }
-            ).take(10) // Show recent 10
+            ).take(4) // Show recent 4
         }
     }
-    
+
     // Calculate totals
     val totalBalance by remember(allTransactions) {
         derivedStateOf {
             allTransactions.sumOf { if (it.isIncome) it.amount else -it.amount }
         }
     }
-    
+
     val totalIncome by remember(allTransactions) {
         derivedStateOf {
             allTransactions.filter { it.isIncome }.sumOf { it.amount }
         }
     }
-    
+
     val totalExpenses by remember(allTransactions) {
         derivedStateOf {
             allTransactions.filter { !it.isIncome }.sumOf { it.amount }
         }
     }
-    
+
     val currencyFormat = remember { NumberFormat.getCurrencyInstance(Locale("en", "IN")) }
 
     var showDialog by remember { mutableStateOf(false) }
@@ -104,214 +109,233 @@ fun Homescreen() {
                 .fillMaxSize()
                 .padding(16.dp)
         ) {
-        item {
-            Text(
-                text = "Home",
-                fontSize = 35.sp,
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
+            item {
+                Text(
+                    text = "Home",
+                    fontSize = 35.sp,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center
-            ) {
-                options.forEach { option ->
-                    val isSelected = option == selectedRange
-                    Box(
-                        modifier = Modifier
-                            .padding(horizontal = 8.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(if (isSelected) Color.Cyan.copy(alpha = 0.8f) else Color.Transparent)
-                            .clickable { selectedRange = option }
-                            .padding(horizontal = 17.dp, vertical = 3.dp)
-                    ) {
-                        Text(
-                            text = option,
-                            color = if (isSelected) Color.White else Color.Gray,
-                            fontSize = 14.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                        )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    options.forEach { option ->
+                        val isSelected = option == selectedRange
+                        Box(
+                            modifier = Modifier
+                                .padding(horizontal = 8.dp)
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(if (isSelected) Color.Cyan.copy(alpha = 0.8f) else Color.Transparent)
+                                .clickable { selectedRange = option }
+                                .padding(horizontal = 17.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text = option,
+                                color = if (isSelected) Color.White else Color.Gray,
+                                fontSize = 14.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                            )
+                        }
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(11.dp))
+                Spacer(modifier = Modifier.height(11.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.ArrowBackIos,
-                    contentDescription = "Previous",
-                    tint = Color.LightGray,
-                    modifier = Modifier
-                        .size(17.dp)
-                        .clickable {
-                            when (selectedRange) {
-                                "Day" -> selectedDate = selectedDate.minusDays(1)
-                                "Month" -> selectedYearMonth = selectedYearMonth.minusMonths(1)
-                                "Year" -> selectedYear -= 1
-                            }
-                        }
-                )
-
-                Text(
-                    text = when (selectedRange) {
-                        "Day" -> "Day ${selectedDate.dayOfMonth}"
-                        "Month" -> selectedYearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault()) + " ${selectedYearMonth.year}"
-                        else -> selectedYear.toString()
-                    },
-                    color = Color.LightGray,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium
-                )
-
-                Icon(
-                    imageVector = Icons.Default.ArrowForwardIos,
-                    contentDescription = "Next",
-                    tint = Color.LightGray,
-                    modifier = Modifier
-                        .size(17.dp)
-                        .clickable {
-                            when (selectedRange) {
-                                "Day" -> {
-                                    val nextDate = selectedDate.plusDays(1)
-                                    if (!nextDate.isAfter(currentDate)) {
-                                        selectedDate = nextDate
-                                    }
-                                }
-                                "Month" -> {
-                                    val nextYearMonth = selectedYearMonth.plusMonths(1)
-                                    if (!nextYearMonth.isAfter(currentYearMonth)) {
-                                        selectedYearMonth = nextYearMonth
-                                    }
-                                }
-                                "Year" -> if (selectedYear < currentDate.year) {
-                                    selectedYear += 1
-                                }
-                            }
-                        }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // --- BETTER GLOW BEHIND TOTAL BALANCE BOX ---
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 11.dp)
-                    .onSizeChanged {
-                        if (balanceCardHeight == null) {
-                            balanceCardHeight = with(density) { it.height.toDp() }
-                        }
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                // Cyan glow behind the card
-                val glowBrush = remember {
-                    Brush.radialGradient(
-                        colors = listOf(
-                            Color.Cyan.copy(alpha = 0.6f),
-                            Color.Transparent
-                        ),
-                        center = Offset(500f, 100f), // Center glow under the box
-                        radius = 500f
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .size(200.dp,89.dp)
-                        .background(
-                            brush = glowBrush,
-                            shape = RoundedCornerShape(24.dp)
-                        )
-                )
-
-                // Main Total Balance card
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color(0xFF111113), RoundedCornerShape(24.dp))
-                        .border(1.dp, Color.DarkGray.copy(0.3f), RoundedCornerShape(24.dp))
-                        .padding(vertical = 12.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowBackIos,
+                        contentDescription = "Previous",
+                        tint = Color.LightGray,
+                        modifier = Modifier
+                            .size(17.dp)
+                            .clickable {
+                                // --- FIX 1: Use a single date source to avoid conflicts ---
+                                selectedDate = when (selectedRange) {
+                                    "Day" -> selectedDate.minusDays(1)
+                                    "Month" -> selectedDate.minusMonths(1)
+                                    "Year" -> selectedDate.minusYears(1)
+                                    else -> selectedDate // Should not happen
+                                }
+                            }
+                    )
+
                     Text(
-                        text = "Total Balance",
-                        color = Color(0xFFB0B0B0),
+                        text = when (selectedRange) {
+                            // --- FIX 2: All text is derived from the single selectedDate state ---
+                            "Day" -> "${selectedDate.dayOfMonth} ${selectedYearMonth.month.getDisplayName(TextStyle.SHORT, Locale.getDefault())} ${selectedDate.year}"
+                            "Month" -> "${selectedYearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${selectedDate.year}"
+                            else -> selectedYear.toString()
+                        },
+                        color = Color.LightGray,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium
                     )
-                    Spacer(modifier = Modifier.height(5.dp))
-                    Text(
-                        text = currencyFormat.format(totalBalance),
-                        color = Color.White,
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold
+
+                    Icon(
+                        imageVector = Icons.Default.ArrowForwardIos,
+                        contentDescription = "Next",
+                        tint = Color.LightGray,
+                        modifier = Modifier
+                            .size(17.dp)
+                            .clickable {
+                                selectedDate = when (selectedRange) {
+                                    "Day" -> selectedDate.plusDays(1)
+                                    "Month" -> selectedDate.plusMonths(1)
+                                    "Year" -> selectedDate.plusYears(1)
+                                    else -> selectedDate
+                                }
+                            }
                     )
                 }
-            }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 11.dp)
-                    .height(balanceCardHeight ?: 100.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                IncomeExpenseCard(
-                    title = "Income",
-                    amount = currencyFormat.format(totalIncome),
-                    glowColor = Color(0xFF00FF80),
-                    modifier = Modifier.weight(1f)
-                )
+                // --- BETTER GLOW BEHIND TOTAL BALANCE BOX ---
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 11.dp)
+                        .onSizeChanged {
+                            if (balanceCardHeight == null) {
+                                balanceCardHeight = with(density) { it.height.toDp() }
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    // Cyan glow behind the card
+                    val glowBrush = remember {
+                        Brush.radialGradient(
+                            colors = listOf(
+                                Color.Cyan.copy(alpha = 0.6f),
+                                Color.Transparent
+                            ),
+                            center = Offset(500f, 100f), // Center glow under the box
+                            radius = 500f
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .size(200.dp,89.dp)
+                            .background(
+                                brush = glowBrush,
+                                shape = RoundedCornerShape(24.dp)
+                            )
+                    )
 
-                IncomeExpenseCard(
-                    title = "Expenses",
-                    amount = currencyFormat.format(totalExpenses),
-                    glowColor = Color(0xFFFF4D4D),
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            HorizontalDivider(thickness = 1.5.dp, color = Color.DarkGray.copy(alpha = 0.8f))
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                text = "Recent Transactions",
-                fontSize = 20.sp,
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-        }
-
-        items(
-            items = transactions,
-            key = { it.id }
-        ) { txn ->
-            TransactionItem(
-                transaction = txn,
-                onLongPress = {
-                    selectedTransaction = txn
-                    showDialog = true
+                    // Main Total Balance card
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF111113), RoundedCornerShape(24.dp))
+                            .border(1.dp, Color.DarkGray.copy(0.3f), RoundedCornerShape(24.dp))
+                            .padding(vertical = 12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "Total Balance",
+                            color = Color(0xFFB0B0B0),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Spacer(modifier = Modifier.height(5.dp))
+                        Text(
+                            text = currencyFormat.format(totalBalance),
+                            color = Color.White,
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
-            )
-        }
 
-        item { Spacer(modifier = Modifier.height(40.dp)) }
-    }
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 11.dp)
+                        .height(balanceCardHeight ?: 100.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    IncomeExpenseCard(
+                        title = "Income",
+                        amount = currencyFormat.format(totalIncome),
+                        glowColor = Color(0xFF00FF80),
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    IncomeExpenseCard(
+                        title = "Expenses",
+                        amount = currencyFormat.format(totalExpenses),
+                        glowColor = Color(0xFFFF4D4D),
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                HorizontalDivider(thickness = 1.5.dp, color = Color.DarkGray.copy(alpha = 0.8f))
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "Recent Transactions",
+                    fontSize = 20.sp,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+            }
+
+            items(
+                items = transactions,
+                key = { it.id }
+            ) { txn ->
+                TransactionItem(
+                    transaction = txn,
+                    onLongPress = {
+                        selectedTransaction = txn
+                        showDialog = true
+                    }
+                )
+            }
+
+            // --- NEW CALENDAR SECTION ---
+            item {
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Horizontal Divider separating Recent Transactions and Calendar
+                HorizontalDivider(thickness = 1.5.dp, color = Color.DarkGray.copy(alpha = 0.8f))
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Text(
+                    text = "Calendar",
+                    fontSize = 20.sp,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+
+                CalendarSection(
+                    currentDate = selectedDate,
+                    onDateSelected = { newDate ->
+                        selectedDate = newDate
+                        // If user clicks a date, switch to "Day" view to show transactions for that specific day
+                        selectedRange = "Day"
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(40.dp))
+            }
+        }
     }
 
     if (showDialog && selectedTransaction != null) {
@@ -322,6 +346,7 @@ fun Homescreen() {
             confirmButton = {
                 TextButton(onClick = {
                     showDialog = false
+                    // TODO: Navigate to an edit screen
                 }) {
                     Icon(Icons.Default.Edit, contentDescription = null)
                     Spacer(Modifier.width(6.dp))
@@ -339,6 +364,96 @@ fun Homescreen() {
                 }
             }
         )
+    }
+}
+
+@Composable
+fun CalendarSection(
+    currentDate: LocalDate,
+    onDateSelected: (LocalDate) -> Unit
+) {
+    val yearMonth = YearMonth.from(currentDate)
+    val daysInMonth = yearMonth.lengthOfMonth()
+    val firstDayOfMonth = yearMonth.atDay(1).dayOfWeek.value // 1 (Mon) to 7 (Sun)
+
+    // Calculate offset: We assume Monday start (value 1).
+    // Grid needs to know how many empty slots before the 1st of the month.
+    val offset = firstDayOfMonth - 1
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(Color(0xFF111113))
+            .border(1.dp, Color.DarkGray.copy(0.3f), RoundedCornerShape(24.dp))
+            .padding(16.dp)
+    ) {
+        // Month and Year Header within the Calendar Card
+        Text(
+            text = "${yearMonth.month.getDisplayName(TextStyle.FULL, Locale.getDefault())} ${yearMonth.year}",
+            color = Color.White,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            textAlign = TextAlign.Center
+        )
+
+        // Days of Week Header
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            listOf("M", "T", "W", "T", "F", "S", "S").forEach { day ->
+                Text(
+                    text = day,
+                    color = Color.Gray,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Calendar Grid
+        val totalSlots = daysInMonth + offset
+        val rows = (totalSlots + 6) / 7
+
+        for (i in 0 until rows) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                for (j in 0 until 7) {
+                    val dayIndex = (i * 7) + j - offset + 1
+                    if (dayIndex in 1..daysInMonth) {
+                        val date = yearMonth.atDay(dayIndex)
+                        val isSelected = date == currentDate
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .aspectRatio(1f)
+                                .clip(CircleShape)
+                                .background(if (isSelected) Color.Cyan else Color.Transparent)
+                                .clickable { onDateSelected(date) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = dayIndex.toString(),
+                                color = if (isSelected) Color.Black else Color.White,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 14.sp
+                            )
+                        }
+                    } else {
+                        // Empty spacer for offset days
+                        Spacer(modifier = Modifier.weight(1f).aspectRatio(1f))
+                    }
+                }
+            }
+        }
     }
 }
 
