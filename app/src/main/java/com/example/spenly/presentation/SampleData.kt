@@ -17,7 +17,12 @@ object SampleData {
         "Bob",
         "Charlie",
         "David",
-        "Eve"
+        "Eve",
+        "Frank",
+        "Grace",
+        "Hannah",
+        "Ivy",
+        "Jack"
     )
 }
 

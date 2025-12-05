@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -50,6 +51,8 @@ private val PanelSurface = Color(0xFF0E0F10)
 private val Green = Color(0xFF4CAF50)
 private val Red = Color(0xFFFF5252)
 
+
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddTransactionSheet(
@@ -73,7 +76,6 @@ fun AddTransactionSheet(
 
     var showCategoryDialog by remember { mutableStateOf(false) }
     var showPayeeDialog by remember { mutableStateOf(false) }
-    var manualPayee by remember { mutableStateOf("") }
 
     // Receipt state (single image URI)
     var receiptUri by remember { mutableStateOf<Uri?>(null) }
@@ -132,9 +134,6 @@ fun AddTransactionSheet(
                                             isIncome = selectedType == TransactionType.Income,
                                             note = note,
                                             payee = payee
-                                            // If your Transaction model supports it,
-                                            // you can add something like:
-                                            // receiptUri = receiptUri?.toString()
                                         )
                                         repository.addTransaction(transaction)
                                         onSave()
@@ -289,20 +288,12 @@ fun AddTransactionSheet(
             }
         )
     }
+
     if (showPayeeDialog) {
         PayeeDialog(
-            manualPayee = manualPayee,
-            onManualPayeeChange = { manualPayee = it },
             onDismiss = { showPayeeDialog = false },
             onPayeeSelected = {
                 payee = it
-                showPayeeDialog = false
-            },
-            onDone = {
-                if (manualPayee.isNotBlank()) {
-                    payee = manualPayee.trim()
-                    manualPayee = ""
-                }
                 showPayeeDialog = false
             }
         )
@@ -512,31 +503,86 @@ fun NoteTextField(value: String, onValueChange: (String) -> Unit) {
 }
 
 @Composable
-fun CategoryDialog(onDismiss: () -> Unit, onCategorySelected: (String) -> Unit) {
+fun CategoryDialog(
+    onDismiss: () -> Unit,
+    onCategorySelected: (String) -> Unit
+) {
+    var query by remember { mutableStateOf("") }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Select Category", color = Color.White, fontWeight = FontWeight.SemiBold) },
         text = {
-            LazyColumn {
-                items(SampleData.categories) { item ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onCategorySelected(item) }
-                            .padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(item, color = Color.White, fontSize = 16.sp)
+            Column {
+                // Unified Search/Add Field
+                TextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    placeholder = { Text("Search or type to add", color = Color(0xFF8C8C90)) },
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp)),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = FieldBackground,
+                        unfocusedContainerColor = FieldBackground,
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        cursorColor = AccentRed,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        focusedIndicatorColor = Color.Transparent
+                    )
+                )
+
+                Spacer(Modifier.height(10.dp))
+
+                // Combined List
+                LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
+                    // 1. Filtered Categories
+                    val filtered = SampleData.categories.filter {
+                        it.contains(query, ignoreCase = true)
                     }
-                    HorizontalDivider(color = Color.DarkGray.copy(alpha = 0.4f))
+
+                    // 2. Option to add custom entry if it doesn't exist in filtered list
+                    // and user has typed something
+                    if (query.isNotBlank() && filtered.none { it.equals(query, ignoreCase = true) }) {
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onCategorySelected(query.trim()) }
+                                    .padding(vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, tint = Color(0xFF2AA6D6))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Add \"$query\"", color = Color(0xFF2AA6D6), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                            HorizontalDivider(color = Color.DarkGray.copy(alpha = 0.4f))
+                        }
+                    }
+
+                    items(filtered) { item ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onCategorySelected(item) }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(item, color = Color.White, fontSize = 16.sp)
+                        }
+                        HorizontalDivider(color = Color.DarkGray.copy(alpha = 0.4f))
+                    }
                 }
             }
         },
-        confirmButton = {
+        confirmButton = {}, // No confirm needed as clicking an item selects it
+        dismissButton = {
             TextButton(
                 onClick = onDismiss,
-                colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFF2AA6D6))
-            ) { Text("Close") }
+                colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFF9EC7E3))
+            ) { Text("Cancel") }
         },
         shape = RoundedCornerShape(20.dp),
         containerColor = PanelSurface,
@@ -545,22 +591,21 @@ fun CategoryDialog(onDismiss: () -> Unit, onCategorySelected: (String) -> Unit) 
 
 @Composable
 fun PayeeDialog(
-    manualPayee: String,
-    onManualPayeeChange: (String) -> Unit,
     onDismiss: () -> Unit,
-    onPayeeSelected: (String) -> Unit,
-    onDone: () -> Unit
+    onPayeeSelected: (String) -> Unit
 ) {
     var query by remember { mutableStateOf("") }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Select Payee", color = Color.White, fontWeight = FontWeight.SemiBold) },
         text = {
             Column {
+                // Unified Search/Add Field
                 TextField(
                     value = query,
                     onValueChange = { query = it },
-                    placeholder = { Text("Search or type name", color = Color(0xFF8C8C90)) },
+                    placeholder = { Text("Search or type to add", color = Color(0xFF8C8C90)) },
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -576,10 +621,31 @@ fun PayeeDialog(
                     )
                 )
                 Spacer(Modifier.height(10.dp))
-                LazyColumn(modifier = Modifier.heightIn(max = 240.dp)) {
+
+                // Combined List
+                LazyColumn(modifier = Modifier.heightIn(max = 200.dp)) {
                     val filtered = SampleData.contacts.filter {
                         it.contains(query, ignoreCase = true)
                     }
+
+                    // Option to add custom payee if not in list
+                    if (query.isNotBlank() && filtered.none { it.equals(query, ignoreCase = true) }) {
+                        item {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onPayeeSelected(query.trim()) }
+                                    .padding(vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, tint = Color(0xFF2AA6D6))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Add \"$query\"", color = Color(0xFF2AA6D6), fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                            HorizontalDivider(color = Color.DarkGray.copy(alpha = 0.4f))
+                        }
+                    }
+
                     items(filtered) { name ->
                         Row(
                             modifier = Modifier
@@ -593,34 +659,9 @@ fun PayeeDialog(
                         HorizontalDivider(color = Color.DarkGray.copy(alpha = 0.4f))
                     }
                 }
-                Spacer(Modifier.height(10.dp))
-                Text(text = "Or add manually:", color = Muted, fontSize = 12.sp)
-                TextField(
-                    value = manualPayee,
-                    onValueChange = onManualPayeeChange,
-                    placeholder = { Text("Enter payee name", color = Color(0xFF8C8C90)) },
-                    singleLine = true,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp)),
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = FieldBackground,
-                        unfocusedContainerColor = FieldBackground,
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        cursorColor = AccentRed,
-                        unfocusedIndicatorColor = Color.Transparent,
-                        focusedIndicatorColor = Color.Transparent
-                    )
-                )
             }
         },
-        confirmButton = {
-            TextButton(
-                onClick = onDone,
-                colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFF2AA6D6))
-            ) { Text("Done") }
-        },
+        confirmButton = {}, // No explicit done button needed as selection closes dialog
         dismissButton = {
             TextButton(
                 onClick = onDismiss,
@@ -640,7 +681,6 @@ enum class TransactionType { Expense, Income }
 @Preview(showBackground = true, widthDp = 360, heightDp = 800)
 @Composable
 fun PreviewAddTransactionSheet() {
-    // This state is just for the preview to work
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     CompositionLocalProvider(LocalTransactionRepository provides TransactionRepository()) {
@@ -650,8 +690,6 @@ fun PreviewAddTransactionSheet() {
                 .background(Color.Black.copy(alpha = 0.6f)), // Dim background for preview
             contentAlignment = Alignment.BottomCenter
         ) {
-            // In a real app, this would be conditionally shown.
-            // For preview, we show it directly.
             AddTransactionSheet(
                 sheetState = sheetState,
                 onDismiss = {},
