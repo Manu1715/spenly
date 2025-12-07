@@ -27,6 +27,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.spenly.data.LocalTransactionRepository
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import java.time.LocalDate
 import java.text.NumberFormat
 import java.util.Locale
@@ -35,13 +40,12 @@ import java.util.Locale
 fun BudgetScreen(onEditBudget: () -> Unit = {}) {
     var showEditDialog by remember { mutableStateOf(false) }
     var budgetInput by remember { mutableStateOf("") }
+    var monthlyBudget by remember { mutableStateOf(20000.0) } // TODO: Store in SharedPreferences or Room
     
     // Get repository and observe transactions
     val repository = LocalTransactionRepository.current
-    val transactionsState = repository.transactionsState
-    val transactions by transactionsState
-    val budgetState = repository.monthlyBudgetState
-    val monthlyBudget by budgetState
+    val scope = rememberCoroutineScope()
+    val transactions by repository.transactions.collectAsState(initial = emptyList())
     
     // Reset budget input when dialog opens
     LaunchedEffect(showEditDialog) {
@@ -49,6 +53,8 @@ fun BudgetScreen(onEditBudget: () -> Unit = {}) {
             budgetInput = monthlyBudget.toString()
         }
     }
+    
+    // TODO: Load monthlyBudget from SharedPreferences or Room
     
     val currentDate = LocalDate.now()
     val currentMonth = currentDate.monthValue
@@ -192,7 +198,8 @@ fun BudgetScreen(onEditBudget: () -> Unit = {}) {
                         try {
                             val amount = budgetInput.toDouble()
                             if (amount >= 0) {
-                                repository.setMonthlyBudget(amount)
+                                monthlyBudget = amount
+                                // TODO: Save to SharedPreferences or Room
                                 showEditDialog = false
                             }
                         } catch (e: NumberFormatException) {
@@ -466,7 +473,6 @@ fun CategoryBudgetsSection(
 @Preview(showBackground = true)
 @Composable
 fun PreviewBudgetScreen() {
-    ProvideTransactionRepository {
-        BudgetScreen(onEditBudget = { /* preview action or leave empty */ })
-    }
+    // Preview requires proper repository setup - skipped for now
+    BudgetScreen(onEditBudget = { /* preview action or leave empty */ })
 }

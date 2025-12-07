@@ -41,6 +41,9 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.launch
+import com.example.spenly.data.LocalTransactionRepository
+import com.example.spenly.data.Transaction
+import com.example.spenly.data.SampleData
 
 // --- Color Palette ---
 private val DarkBackground = Color(0xFF040607)
@@ -61,6 +64,7 @@ fun AddTransactionSheet(
     onSave: () -> Unit
 ) {
     val repository = LocalTransactionRepository.current
+    val scope = rememberCoroutineScope()
     var selectedType by remember { mutableStateOf(TransactionType.Expense) }
     var category by remember { mutableStateOf<String?>(null) }
     var amount by remember { mutableStateOf("") }
@@ -126,16 +130,19 @@ fun AddTransactionSheet(
                                     val amountValue = amount.toDouble()
                                     if (amountValue > 0) {
                                         val transaction = Transaction(
-                                            id = repository.getNextId(),
+                                            id = 0, // Room will auto-generate
                                             title = category ?: "Transaction",
                                             category = category ?: "",
                                             amount = amountValue,
                                             date = selectedDate, // Use the selected date
                                             isIncome = selectedType == TransactionType.Income,
                                             note = note,
-                                            payee = payee
+                                            payee = payee,
+                                            receiptUri = receiptUri?.toString()
                                         )
-                                        repository.addTransaction(transaction)
+                                        scope.launch {
+                                            repository.addTransaction(transaction)
+                                        }
                                         onSave()
                                     }
                                 } catch (e: NumberFormatException) {
@@ -683,18 +690,15 @@ enum class TransactionType { Expense, Income }
 fun PreviewAddTransactionSheet() {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
-    CompositionLocalProvider(LocalTransactionRepository provides TransactionRepository()) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.6f)), // Dim background for preview
-            contentAlignment = Alignment.BottomCenter
-        ) {
-            AddTransactionSheet(
-                sheetState = sheetState,
-                onDismiss = {},
-                onSave = {}
-            )
-        }
+    // Preview requires proper repository setup - skipped for now
+    // Note: Preview needs a proper repository instance with database
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.6f)), // Dim background for preview
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        // Preview disabled - requires database setup
+        Text("Preview requires database", color = Color.White)
     }
 }

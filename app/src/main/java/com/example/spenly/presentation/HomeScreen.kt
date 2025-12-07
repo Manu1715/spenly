@@ -38,8 +38,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.spenly.presentation.LocalTransactionRepository
-import com.example.spenly.presentation.Transaction
+import com.example.spenly.data.LocalTransactionRepository
+import com.example.spenly.data.Transaction
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import java.text.NumberFormat
 import java.time.LocalDate
 import java.time.YearMonth
@@ -50,6 +54,7 @@ import java.util.Locale
 @Composable
 fun Homescreen() {
     val repository = LocalTransactionRepository.current
+    val scope = rememberCoroutineScope()
     var selectedRange by remember { mutableStateOf("Month") }
 
     // Use a single source of truth for the date
@@ -64,15 +69,14 @@ fun Homescreen() {
     var balanceCardHeight by remember { mutableStateOf<Dp?>(null) }
     val density = LocalDensity.current
 
-    // Observe repository transactions state directly
-    val transactionsState = repository.transactionsState
-    val allTransactions by transactionsState
+    // Observe repository transactions from Flow
+    val allTransactions by repository.transactions.collectAsState(initial = emptyList())
 
     // Get current transactions from repository - newest first (by date, then by ID)
     val transactions by remember(allTransactions) {
         derivedStateOf {
             allTransactions.sortedWith(
-                compareByDescending<com.example.spenly.presentation.Transaction> { it.date }
+                compareByDescending<Transaction> { it.date }
                     .thenByDescending { it.id }
             ).take(4) // Show recent 4
         }
@@ -100,7 +104,7 @@ fun Homescreen() {
     val currencyFormat = remember { NumberFormat.getCurrencyInstance(Locale("en", "IN")) }
 
     var showDialog by remember { mutableStateOf(false) }
-    var selectedTransaction by remember { mutableStateOf<com.example.spenly.presentation.Transaction?>(null) }
+    var selectedTransaction by remember { mutableStateOf<Transaction?>(null) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -355,7 +359,11 @@ fun Homescreen() {
             },
             dismissButton = {
                 TextButton(onClick = {
-                    selectedTransaction?.let { repository.removeTransaction(it) }
+                    selectedTransaction?.let { transaction ->
+                        scope.launch {
+                            repository.removeTransaction(transaction)
+                        }
+                    }
                     showDialog = false
                 }) {
                     Icon(Icons.Default.Delete, contentDescription = null)

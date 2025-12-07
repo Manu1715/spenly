@@ -27,7 +27,7 @@ import com.example.spenly.presentation.BudgetScreen
 import com.example.spenly.presentation.AddTransactionScreen
 import com.example.spenly.presentation.HistoryScreen
 import com.example.spenly.presentation.LocalClearDialogTrigger
-import com.example.spenly.presentation.ProvideTransactionRepository
+import com.example.spenly.data.ProvideTransactionRepository
 import com.example.spenly.presentation.SettingsScreen
 import com.example.spenly.presentation.ScreenTopBar
 import com.example.spenly.presentation.screens.Homescreen
@@ -40,7 +40,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             SpenlyTheme {
-                ProvideTransactionRepository {
+                ProvideTransactionRepository(context = this@MainActivity) {
                     val navController = rememberNavController()
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val currentRoute = navBackStackEntry?.destination?.route

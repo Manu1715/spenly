@@ -1,4 +1,4 @@
-package com.example.spenly.presentation
+package com.example.spenly.data
 
 object SampleData {
     // Categories mirrored from Home screen sample transactions
@@ -25,6 +25,5 @@ object SampleData {
         "Jack"
     )
 }
-
 
 
